@@ -58,8 +58,16 @@ const sequelize = new Sequelize(
     port: databaseConfig.port,
     dialect: dialect,
     logging: databaseConfig.logging,
-    pool: databaseConfig.pool
+    pool: databaseConfig.pool,
+    quoteIdentifiers: true, // Quote identifiers to preserve case (important for PostgreSQL)
+    define: {
+      underscored: false, // Use camelCase for attributes
+      freezeTableName: true // Don't pluralize table names
+    }
   }
 );
+
+// Export dialect for use in migrations
+sequelize.dialect = dialect;
 
 module.exports = sequelize;

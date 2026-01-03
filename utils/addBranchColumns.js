@@ -6,12 +6,17 @@ const sequelize = require('../config/database');
  */
 const addBranchColumns = async () => {
   try {
+    const isPostgres = sequelize.getDialect() === 'postgres';
+    const schemaCondition = isPostgres 
+      ? "table_schema = 'public'" 
+      : "TABLE_SCHEMA = DATABASE()";
+    
     // Check if branches table exists first
     const [branchTableCheck] = await sequelize.query(`
-      SELECT TABLE_NAME 
+      SELECT ${isPostgres ? 'table_name' : 'TABLE_NAME'} 
       FROM INFORMATION_SCHEMA.TABLES 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'branches'
+      WHERE ${schemaCondition} 
+      AND ${isPostgres ? 'table_name' : 'TABLE_NAME'} = 'branches'
     `);
 
     if (branchTableCheck.length === 0) {
@@ -20,11 +25,11 @@ const addBranchColumns = async () => {
     }
 
     const [results] = await sequelize.query(`
-      SELECT COLUMN_NAME 
+      SELECT ${isPostgres ? 'column_name' : 'COLUMN_NAME'} 
       FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'users' 
-      AND COLUMN_NAME = 'branchId'
+      WHERE ${schemaCondition} 
+      AND ${isPostgres ? 'table_name' : 'TABLE_NAME'} = 'users' 
+      AND ${isPostgres ? 'column_name' : 'COLUMN_NAME'} = 'branchId'
     `);
 
     // Add branchId to users table if it doesn't exist
@@ -37,7 +42,11 @@ const addBranchColumns = async () => {
       
       // Add index
       try {
-        await sequelize.query(`ALTER TABLE users ADD INDEX idx_users_branchId (branchId)`);
+        if (isPostgres) {
+          await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_users_branchId ON users (branchId)`);
+        } else {
+          await sequelize.query(`ALTER TABLE users ADD INDEX idx_users_branchId (branchId)`);
+        }
       } catch (err) {
         // Index might already exist, ignore
       }
@@ -61,11 +70,11 @@ const addBranchColumns = async () => {
 
     // Add branchId to sales table if it doesn't exist
     const [salesResults] = await sequelize.query(`
-      SELECT COLUMN_NAME 
+      SELECT ${isPostgres ? 'column_name' : 'COLUMN_NAME'} 
       FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'sales' 
-      AND COLUMN_NAME = 'branchId'
+      WHERE ${schemaCondition} 
+      AND ${isPostgres ? 'table_name' : 'TABLE_NAME'} = 'sales' 
+      AND ${isPostgres ? 'column_name' : 'COLUMN_NAME'} = 'branchId'
     `);
     if (salesResults.length === 0) {
       // Check if there are existing sales - if yes, we need to handle migration differently
@@ -82,7 +91,11 @@ const addBranchColumns = async () => {
       }
       
       try {
-        await sequelize.query(`ALTER TABLE sales ADD INDEX idx_sales_branchId (branchId)`);
+        if (isPostgres) {
+          await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_sales_branchId ON sales (branchId)`);
+        } else {
+          await sequelize.query(`ALTER TABLE sales ADD INDEX idx_sales_branchId (branchId)`);
+        }
       } catch (err) {}
       
       try {
@@ -102,11 +115,11 @@ const addBranchColumns = async () => {
 
     // Add branchId to inventory_items table if it doesn't exist
     const [inventoryResults] = await sequelize.query(`
-      SELECT COLUMN_NAME 
+      SELECT ${isPostgres ? 'column_name' : 'COLUMN_NAME'} 
       FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'inventory_items' 
-      AND COLUMN_NAME = 'branchId'
+      WHERE ${schemaCondition} 
+      AND ${isPostgres ? 'table_name' : 'TABLE_NAME'} = 'inventory_items' 
+      AND ${isPostgres ? 'column_name' : 'COLUMN_NAME'} = 'branchId'
     `);
     if (inventoryResults.length === 0) {
       const [invCountResult] = await sequelize.query(`SELECT COUNT(*) as count FROM inventory_items`);
@@ -120,7 +133,11 @@ const addBranchColumns = async () => {
       }
       
       try {
-        await sequelize.query(`ALTER TABLE inventory_items ADD INDEX idx_inventory_items_branchId (branchId)`);
+        if (isPostgres) {
+          await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_inventory_items_branchId ON inventory_items (branchId)`);
+        } else {
+          await sequelize.query(`ALTER TABLE inventory_items ADD INDEX idx_inventory_items_branchId (branchId)`);
+        }
       } catch (err) {}
       
       try {
@@ -140,11 +157,11 @@ const addBranchColumns = async () => {
 
     // Add branchId to deliveries table if it doesn't exist
     const [deliveryResults] = await sequelize.query(`
-      SELECT COLUMN_NAME 
+      SELECT ${isPostgres ? 'column_name' : 'COLUMN_NAME'} 
       FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'deliveries' 
-      AND COLUMN_NAME = 'branchId'
+      WHERE ${schemaCondition} 
+      AND ${isPostgres ? 'table_name' : 'TABLE_NAME'} = 'deliveries' 
+      AND ${isPostgres ? 'column_name' : 'COLUMN_NAME'} = 'branchId'
     `);
     if (deliveryResults.length === 0) {
       const [delCountResult] = await sequelize.query(`SELECT COUNT(*) as count FROM deliveries`);
@@ -158,7 +175,11 @@ const addBranchColumns = async () => {
       }
       
       try {
-        await sequelize.query(`ALTER TABLE deliveries ADD INDEX idx_deliveries_branchId (branchId)`);
+        if (isPostgres) {
+          await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_deliveries_branchId ON deliveries (branchId)`);
+        } else {
+          await sequelize.query(`ALTER TABLE deliveries ADD INDEX idx_deliveries_branchId (branchId)`);
+        }
       } catch (err) {}
       
       try {
@@ -178,11 +199,11 @@ const addBranchColumns = async () => {
 
     // Add branchId to shifts table if it doesn't exist
     const [shiftResults] = await sequelize.query(`
-      SELECT COLUMN_NAME 
+      SELECT ${isPostgres ? 'column_name' : 'COLUMN_NAME'} 
       FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'shifts' 
-      AND COLUMN_NAME = 'branchId'
+      WHERE ${schemaCondition} 
+      AND ${isPostgres ? 'table_name' : 'TABLE_NAME'} = 'shifts' 
+      AND ${isPostgres ? 'column_name' : 'COLUMN_NAME'} = 'branchId'
     `);
     if (shiftResults.length === 0) {
       const [shiftCountResult] = await sequelize.query(`SELECT COUNT(*) as count FROM shifts`);
@@ -196,7 +217,11 @@ const addBranchColumns = async () => {
       }
       
       try {
-        await sequelize.query(`ALTER TABLE shifts ADD INDEX idx_shifts_branchId (branchId)`);
+        if (isPostgres) {
+          await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_shifts_branchId ON shifts (branchId)`);
+        } else {
+          await sequelize.query(`ALTER TABLE shifts ADD INDEX idx_shifts_branchId (branchId)`);
+        }
       } catch (err) {}
       
       try {
@@ -216,17 +241,21 @@ const addBranchColumns = async () => {
 
     // Add branchId to menu_items table if it doesn't exist
     const [menuResults] = await sequelize.query(`
-      SELECT COLUMN_NAME 
+      SELECT ${isPostgres ? 'column_name' : 'COLUMN_NAME'} 
       FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'menu_items' 
-      AND COLUMN_NAME = 'branchId'
+      WHERE ${schemaCondition} 
+      AND ${isPostgres ? 'table_name' : 'TABLE_NAME'} = 'menu_items' 
+      AND ${isPostgres ? 'column_name' : 'COLUMN_NAME'} = 'branchId'
     `);
     if (menuResults.length === 0) {
       await sequelize.query(`ALTER TABLE menu_items ADD COLUMN branchId CHAR(36) NULL`);
       
       try {
-        await sequelize.query(`ALTER TABLE menu_items ADD INDEX idx_menu_items_branchId (branchId)`);
+        if (isPostgres) {
+          await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_menu_items_branchId ON menu_items (branchId)`);
+        } else {
+          await sequelize.query(`ALTER TABLE menu_items ADD INDEX idx_menu_items_branchId (branchId)`);
+        }
       } catch (err) {}
       
       try {

@@ -9,14 +9,19 @@ const addContactInfoColumns = async () => {
     await sequelize.authenticate();
     console.log('Database connection established for contact info migration.');
 
+    const isPostgres = sequelize.getDialect() === 'postgres';
+    const schemaCondition = isPostgres 
+      ? "table_schema = 'public'" 
+      : "TABLE_SCHEMA = DATABASE()";
+
     // Helper function to add column if it doesn't exist
     const addColumnIfNotExists = async (tableName, columnName, columnType) => {
       const [results] = await sequelize.query(`
-        SELECT COLUMN_NAME
+        SELECT ${isPostgres ? 'column_name' : 'COLUMN_NAME'}
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = '${tableName}'
-        AND COLUMN_NAME = '${columnName}'
+        WHERE ${schemaCondition}
+        AND ${isPostgres ? 'table_name' : 'TABLE_NAME'} = '${tableName}'
+        AND ${isPostgres ? 'column_name' : 'COLUMN_NAME'} = '${columnName}'
       `);
 
       if (results.length === 0) {
