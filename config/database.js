@@ -38,6 +38,7 @@ if (process.env.DATABASE_URL) {
   dialect = 'postgres';
 } else {
   // Local development with MySQL
+  const mysql2 = require('mysql2');
   sequelize = new Sequelize(
     process.env.DB_NAME || 'orderledger',
     process.env.DB_USER || 'root',
@@ -46,6 +47,7 @@ if (process.env.DATABASE_URL) {
       host: process.env.DB_HOST || 'localhost',
       port: process.env.DB_PORT || 3306,
       dialect: 'mysql',
+      dialectModule: mysql2,
       logging: process.env.NODE_ENV === 'development' ? console.log : false,
       pool: {
         max: 5,
@@ -62,8 +64,5 @@ if (process.env.DATABASE_URL) {
   );
   dialect = 'mysql';
 }
-
-// Export dialect for use in migrations
-sequelize.dialect = dialect;
 
 module.exports = sequelize;
