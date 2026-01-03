@@ -40,13 +40,41 @@ Make sure you also have:
    - `✅ Available database environment variables: MYSQL_HOST=..., MYSQL_USER=..., etc.`
    - `Database connection config: { host: '...', ... }` (should NOT be localhost)
 
+## Alternative: Manual Method (If Reference Doesn't Work)
+
+If the reference method isn't working, you can manually copy the variables:
+
+1. **Get variables from MySQL service:**
+   - Click on your **MySQL database service**
+   - Go to the **"Variables"** tab
+   - You'll see variables like:
+     - `MYSQL_HOST` (or `MYSQLHOST`)
+     - `MYSQL_USER` (or `MYSQLUSER`)
+     - `MYSQLPASSWORD`
+     - `MYSQLDATABASE`
+     - `MYSQL_PORT` (or `MYSQLPORT`)
+
+2. **Copy to your app service:**
+   - Go back to your **app service** (order-ledger-api)
+   - Go to **"Variables"** tab
+   - Click **"+ New Variable"** → **"Raw"**
+   - Add each variable one by one:
+     - Key: `DB_HOST`, Value: (copy from `MYSQL_HOST` or `MYSQLHOST`)
+     - Key: `DB_USER`, Value: (copy from `MYSQL_USER` or `MYSQLUSER`)
+     - Key: `DB_PASSWORD`, Value: (copy from `MYSQLPASSWORD`)
+     - Key: `DB_NAME`, Value: (copy from `MYSQLDATABASE`)
+     - Key: `DB_PORT`, Value: (copy from `MYSQL_PORT` or `MYSQLPORT`, or use `3306`)
+
+3. **Redeploy** and check the logs
+
 ## Troubleshooting
 
-### If variables still don't appear:
+### If variables still don't appear (Reference Method):
 1. Make sure you selected **"Reference"** (not "Raw")
 2. Make sure you selected the correct MySQL service
 3. Try removing and re-adding the reference
 4. Check that the MySQL service is running (green status)
+5. **Try the Manual Method above instead**
 
 ### If connection still fails:
 1. Check the logs for the actual connection values
