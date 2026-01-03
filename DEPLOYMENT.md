@@ -22,19 +22,27 @@ Railway is the simplest option with built-in database support.
 4. Railway will automatically detect it's a Node.js app
 5. Add a MySQL database:
    - Click "+ New" → "Database" → "MySQL"
-6. Set environment variables:
-   - Go to your service → "Variables"
-   - Add these variables (Railway will auto-populate DB variables from the MySQL service):
+   - Railway will create the database and provide connection variables
+6. **Link the database to your app:**
+   - In your app service, go to "Variables" tab
+   - Click "+ New Variable" → "Reference"
+   - Select your MySQL service
+   - Railway will automatically add: `MYSQL_HOST`, `MYSQL_USER`, `MYSQLPASSWORD`, `MYSQLDATABASE`, `MYSQL_PORT`
+7. **Set additional environment variables:**
+   - Go to your app service → "Variables"
+   - Add these variables:
      ```
      PORT=8000
-     DB_HOST=<auto-filled from MySQL service>
-     DB_USER=<auto-filled from MySQL service>
-     DB_PASSWORD=<auto-filled from MySQL service>
-     DB_NAME=<auto-filled from MySQL service>
-     JWT_SECRET=<generate a random secret key>
+     JWT_SECRET=<generate a random secret key - use a strong random string>
      NODE_ENV=production
      ```
-7. Railway will automatically deploy and give you a URL like: `https://your-app.railway.app`
+   - **Note:** The code now automatically uses Railway's `MYSQL_*` variables, so you don't need to manually map them to `DB_*` variables!
+8. Railway will automatically deploy and give you a URL like: `https://your-app.railway.app`
+
+**Troubleshooting Connection Issues:**
+- Make sure you've added the MySQL database as a reference in your app service
+- Check that all `MYSQL_*` variables are present in your app's environment variables
+- The code supports both `MYSQL_*` (Railway's default) and `DB_*` (custom) variable names
 
 **Pros:**
 - Very easy setup
