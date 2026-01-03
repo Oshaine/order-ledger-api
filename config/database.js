@@ -10,7 +10,11 @@ const mysqlVars = Object.keys(process.env).filter(key =>
   key.includes('MYSQL') || key.includes('DB_') || key.includes('DATABASE')
 );
 if (mysqlVars.length > 0) {
-  console.log('Available database environment variables:', mysqlVars.map(key => `${key}=${key.includes('PASSWORD') ? '***' : process.env[key]}`).join(', '));
+  console.log('✅ Available database environment variables:', mysqlVars.map(key => `${key}=${key.includes('PASSWORD') ? '***' : process.env[key]}`).join(', '));
+} else {
+  console.log('⚠️  WARNING: No MySQL database environment variables found!');
+  console.log('   Make sure you have linked the MySQL database service in Railway.');
+  console.log('   Go to your app service → Variables → + New Variable → Reference → Select MySQL service');
 }
 
 const dbConfig = {
