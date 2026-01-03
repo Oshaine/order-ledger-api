@@ -6,23 +6,35 @@ let dialect = 'mysql';
 
 // Use DATABASE_URL if provided (Render/Production), otherwise use individual config vars
 if (process.env.DATABASE_URL) {
-  // Sequelize can use DATABASE_URL directly - it auto-detects PostgreSQL
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
-    dialect: 'postgres',
-    dialectModule: require('pg'),
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    },
-    quoteIdentifiers: true, // Quote identifiers to preserve case (important for PostgreSQL)
-    define: {
-      underscored: false, // Use camelCase for attributes
-      freezeTableName: true // Don't pluralize table names
+  // Parse DATABASE_URL and create Sequelize instance with explicit config
+  const url = new URL(process.env.DATABASE_URL);
+  
+  // Ensure pg module is loaded
+  const pg = require('pg');
+  
+  sequelize = new Sequelize(
+    url.pathname.slice(1), // database name (remove leading '/')
+    url.username,         // username
+    url.password,         // password
+    {
+      host: url.hostname,
+      port: url.port || 5432,
+      dialect: 'postgres',
+      dialectModule: pg,
+      logging: process.env.NODE_ENV === 'development' ? console.log : false,
+      pool: {
+        max: 5,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
+      },
+      quoteIdentifiers: true, // Quote identifiers to preserve case (important for PostgreSQL)
+      define: {
+        underscored: false, // Use camelCase for attributes
+        freezeTableName: true // Don't pluralize table names
+      }
     }
-  });
+  );
   dialect = 'postgres';
 } else {
   // Local development with MySQL
