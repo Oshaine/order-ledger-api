@@ -10,8 +10,6 @@ npm install
 ```
 
 2. Create a `.env` file in the root directory:
-
-**For Local Development:**
 ```
 PORT=8000
 DB_HOST=localhost
@@ -21,19 +19,6 @@ DB_NAME=orderledger
 JWT_SECRET=your-secret-key-change-in-production
 NODE_ENV=development
 ```
-
-**For Production (e.g., Railway, Render, etc.):**
-```
-PORT=8000
-DB_HOST=<auto-filled from MySQL service>
-DB_USER=<auto-filled from MySQL service>
-DB_PASSWORD=<auto-filled from MySQL service>
-DB_NAME=<auto-filled from MySQL service>
-JWT_SECRET=<generate a random secret key>
-NODE_ENV=production
-```
-
-**Note:** When deploying to platforms like Railway, the database variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) are typically auto-filled when you connect a MySQL database service. You only need to manually set `JWT_SECRET` with a strong random string.
 
 3. Make sure MySQL is running and the database exists (or Sequelize will create it).
 
