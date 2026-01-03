@@ -6,7 +6,15 @@ const { syncDatabase } = require('./models');
 const app = express();
 
 // Middleware
-app.use(cors());
+// CORS configuration - allow requests from frontend
+// In production, set FRONTEND_URL environment variable to your Netlify URL
+const corsOptions = {
+  origin: process.env.FRONTEND_URL 
+    ? [process.env.FRONTEND_URL, 'http://localhost:3000', 'http://localhost:5173']
+    : true, // Allow all origins in development
+  credentials: true
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
