@@ -211,7 +211,9 @@ const syncDatabase = async (force = false) => {
     } else {
       // Update password and branchId directly using SQL to bypass Sequelize hooks and fix corruption
       const hashedPassword = await bcrypt.hash('admin123', 10);
-      await sequelize.query('UPDATE users SET password = :password, branchId = :branchId WHERE id = :id', {
+      const isPostgres = sequelize.getDialect() === 'postgres';
+      const branchIdCol = isPostgres ? '"branchId"' : 'branchId';
+      await sequelize.query(`UPDATE users SET password = :password, ${branchIdCol} = :branchId WHERE id = :id`, {
         replacements: { password: hashedPassword, branchId: mandevilleBranch.id, id: adminUser.id }
       });
       console.log('✓ Default admin user password reset and assigned to Mandeville branch');
@@ -233,7 +235,9 @@ const syncDatabase = async (force = false) => {
     } else {
       // Update password and branchId directly using SQL to bypass Sequelize hooks and fix corruption
       const hashedPassword = await bcrypt.hash('cashier123', 10);
-      await sequelize.query('UPDATE users SET password = :password, branchId = :branchId WHERE id = :id', {
+      const isPostgres = sequelize.getDialect() === 'postgres';
+      const branchIdCol = isPostgres ? '"branchId"' : 'branchId';
+      await sequelize.query(`UPDATE users SET password = :password, ${branchIdCol} = :branchId WHERE id = :id`, {
         replacements: { password: hashedPassword, branchId: mandevilleBranch.id, id: cashierUser.id }
       });
       console.log('✓ Default cashier user password reset and assigned to Mandeville branch');
@@ -255,7 +259,9 @@ const syncDatabase = async (force = false) => {
     } else {
       // Update password and branchId directly using SQL to bypass Sequelize hooks and fix corruption
       const hashedPassword = await bcrypt.hash('delivery123', 10);
-      await sequelize.query('UPDATE users SET password = :password, branchId = :branchId WHERE id = :id', {
+      const isPostgres = sequelize.getDialect() === 'postgres';
+      const branchIdCol = isPostgres ? '"branchId"' : 'branchId';
+      await sequelize.query(`UPDATE users SET password = :password, ${branchIdCol} = :branchId WHERE id = :id`, {
         replacements: { password: hashedPassword, branchId: mandevilleBranch.id, id: deliveryUser.id }
       });
       console.log('✓ Default delivery user password reset and assigned to Mandeville branch');
