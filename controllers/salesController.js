@@ -2,39 +2,49 @@ const { Sale, SaleItem, Payment, CashDenomination, MenuItemSize, MenuItem, Inven
 const { generateInvoiceNumber } = require('../utils/invoiceNumber');
 const { logAudit } = require('../middleware/audit');
 const { getBranchFilter } = require('../middleware/auth');
+const { normalizeUuid, sameUuid } = require('../utils/branchUuid');
 const { Op } = require('sequelize');
 
 /**
- * Menu sizes often point at inventory created for one branch (e.g. seed) while the sale uses
- * the cashier's branch. For catalogue items (menuItem.branchId === null), use or create a
- * same-named inventory row for the sale branch.
+ * Menu sizes often point at inventory created for another branch (e.g. seed on "first" branch).
+ * Sales always deduct from the cashier's branch. After menu access is validated, use or create
+ * a same-named inventory row for the sale branch (UUIDs normalized for Buffer/string DB quirks).
  */
-async function resolveInventoryForSaleBranch(inventoryItem, saleBranchId, menuItem, transaction, { createIfMissing = false } = {}) {
+async function resolveInventoryForSaleBranch(inventoryItem, saleBranchId, transaction, { createIfMissing = false } = {}) {
   if (!inventoryItem) return null;
-  if (inventoryItem.branchId === saleBranchId) {
+  const branchNorm = normalizeUuid(saleBranchId);
+  if (!branchNorm) return null;
+  if (sameUuid(inventoryItem.branchId, branchNorm)) {
     return inventoryItem;
   }
-  if (menuItem.branchId !== null) {
-    return null;
-  }
-  const existing = await InventoryItem.findOne({
-    where: { branchId: saleBranchId, name: inventoryItem.name },
-    transaction
-  });
+
+  const where = { branchId: branchNorm, name: inventoryItem.name };
+  const existing = await InventoryItem.findOne({ where, transaction });
   if (existing) return existing;
   if (!createIfMissing) return null;
-  return InventoryItem.create(
-    {
-      name: inventoryItem.name,
-      category: inventoryItem.category,
-      size: inventoryItem.size,
-      currentStock: 9999,
-      lowStockThreshold: inventoryItem.lowStockThreshold,
-      unit: inventoryItem.unit,
-      branchId: saleBranchId
-    },
-    { transaction }
-  );
+
+  const defaults = {
+    category: inventoryItem.category,
+    size: inventoryItem.size,
+    currentStock: 9999,
+    lowStockThreshold: inventoryItem.lowStockThreshold ?? 10,
+    unit: inventoryItem.unit || 'portion'
+  };
+
+  try {
+    const [row] = await InventoryItem.findOrCreate({
+      where,
+      defaults,
+      transaction
+    });
+    return row;
+  } catch (err) {
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      const retry = await InventoryItem.findOne({ where, transaction });
+      if (retry) return retry;
+    }
+    throw err;
+  }
 }
 
 const getAllSales = async (req, res) => {
@@ -147,7 +157,7 @@ const createSale = async (req, res) => {
   try {
     const { items, payment, isDelivery, deliveryLocation } = req.body;
     const cashierId = req.user.id;
-    const branchId = req.user.branchId;
+    const branchId = normalizeUuid(req.user.branchId);
 
     if (!branchId) {
       await transaction.rollback();
@@ -179,7 +189,8 @@ const createSale = async (req, res) => {
 
       // Check menu item is available to this branch
       const menuItem = menuItemSize.menuItem;
-      if (menuItem.branchId !== null && menuItem.branchId !== branchId) {
+      const menuBranchNorm = normalizeUuid(menuItem.branchId);
+      if (menuBranchNorm !== null && menuBranchNorm !== branchId) {
         await transaction.rollback();
         return res.status(403).json({ error: `Menu item "${menuItem.name}" is not available for this branch` });
       }
@@ -190,13 +201,15 @@ const createSale = async (req, res) => {
         return res.status(400).json({ error: `Inventory item not found` });
       }
 
-      const inventoryItem = await resolveInventoryForSaleBranch(templateInventory, branchId, menuItem, transaction, {
+      const inventoryItem = await resolveInventoryForSaleBranch(templateInventory, branchId, transaction, {
         createIfMissing: true
       });
       if (!inventoryItem) {
         await transaction.rollback();
         return res.status(400).json({
-          error: `Inventory item "${templateInventory.name}" belongs to a different branch`
+          error:
+            'Could not resolve inventory for this branch (missing branch on user or inventory name). ' +
+            `Item: "${templateInventory.name}".`
         });
       }
 
@@ -265,7 +278,7 @@ const createSale = async (req, res) => {
       }, { transaction });
 
       const templateInventory = await InventoryItem.findByPk(menuItemSize.inventoryItemId, { transaction });
-      const inventoryItem = await resolveInventoryForSaleBranch(templateInventory, branchId, menuItemSize.menuItem, transaction, {
+      const inventoryItem = await resolveInventoryForSaleBranch(templateInventory, branchId, transaction, {
         createIfMissing: true
       });
       const previousStock = inventoryItem.currentStock;
@@ -395,13 +408,9 @@ const cancelSale = async (req, res) => {
 
     // Restore inventory for each item (same branch row as createSale deducted from)
     for (const item of sale.items) {
-      const menuItemSize = item.menuItemSize || (await MenuItemSize.findByPk(item.menuItemSizeId, {
-        include: [{ model: MenuItem, as: 'menuItem' }],
-        transaction
-      }));
-      const menuItem = menuItemSize.menuItem;
+      const menuItemSize = item.menuItemSize || (await MenuItemSize.findByPk(item.menuItemSizeId, { transaction }));
       const templateInventory = await InventoryItem.findByPk(menuItemSize.inventoryItemId, { transaction });
-      const inventoryItem = await resolveInventoryForSaleBranch(templateInventory, sale.branchId, menuItem, transaction, {
+      const inventoryItem = await resolveInventoryForSaleBranch(templateInventory, sale.branchId, transaction, {
         createIfMissing: false
       });
       if (!inventoryItem) {
