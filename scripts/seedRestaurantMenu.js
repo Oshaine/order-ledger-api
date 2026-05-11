@@ -295,13 +295,18 @@ async function main() {
     await clearAllMenu();
   }
 
-  const branch = await Branch.findOne({ where: { isActive: true }, order: [['name', 'ASC']] });
-  if (!branch) {
+  const branches = await Branch.findAll({ where: { isActive: true }, order: [['name', 'ASC']] });
+  if (!branches.length) {
     console.error('No active branch found. Create a branch first.');
     process.exit(1);
   }
 
-  const inv = await ensureInventoryPool(branch.id);
+  let inv = null;
+  for (const b of branches) {
+    const pool = await ensureInventoryPool(b.id);
+    if (!inv) inv = pool;
+  }
+  const branch = branches[0];
   let created = 0;
   const pexelsStats = { count: 0 };
 

@@ -4,6 +4,39 @@ const { logAudit } = require('../middleware/audit');
 const { getBranchFilter } = require('../middleware/auth');
 const { Op } = require('sequelize');
 
+/**
+ * Menu sizes often point at inventory created for one branch (e.g. seed) while the sale uses
+ * the cashier's branch. For catalogue items (menuItem.branchId === null), use or create a
+ * same-named inventory row for the sale branch.
+ */
+async function resolveInventoryForSaleBranch(inventoryItem, saleBranchId, menuItem, transaction, { createIfMissing = false } = {}) {
+  if (!inventoryItem) return null;
+  if (inventoryItem.branchId === saleBranchId) {
+    return inventoryItem;
+  }
+  if (menuItem.branchId !== null) {
+    return null;
+  }
+  const existing = await InventoryItem.findOne({
+    where: { branchId: saleBranchId, name: inventoryItem.name },
+    transaction
+  });
+  if (existing) return existing;
+  if (!createIfMissing) return null;
+  return InventoryItem.create(
+    {
+      name: inventoryItem.name,
+      category: inventoryItem.category,
+      size: inventoryItem.size,
+      currentStock: 9999,
+      lowStockThreshold: inventoryItem.lowStockThreshold,
+      unit: inventoryItem.unit,
+      branchId: saleBranchId
+    },
+    { transaction }
+  );
+}
+
 const getAllSales = async (req, res) => {
   try {
     const { startDate, endDate, cashierId, status, invoiceNumber, minAmount, maxAmount, branchId } = req.query;
@@ -133,8 +166,7 @@ const createSale = async (req, res) => {
 
     // Calculate total and validate menu items and inventory
     let totalAmount = 0;
-    const { MenuItem } = require('../models');
-    
+
     for (const item of items) {
       const menuItemSize = await MenuItemSize.findByPk(item.menuItemSizeId, {
         include: [{ model: MenuItem, as: 'menuItem' }],
@@ -152,17 +184,20 @@ const createSale = async (req, res) => {
         return res.status(403).json({ error: `Menu item "${menuItem.name}" is not available for this branch` });
       }
 
-      // Check inventory
-      const inventoryItem = await InventoryItem.findByPk(menuItemSize.inventoryItemId, { transaction });
-      if (!inventoryItem) {
+      const templateInventory = await InventoryItem.findByPk(menuItemSize.inventoryItemId, { transaction });
+      if (!templateInventory) {
         await transaction.rollback();
         return res.status(400).json({ error: `Inventory item not found` });
       }
 
-      // Ensure inventory item belongs to the sale's branch
-      if (inventoryItem.branchId !== branchId) {
+      const inventoryItem = await resolveInventoryForSaleBranch(templateInventory, branchId, menuItem, transaction, {
+        createIfMissing: true
+      });
+      if (!inventoryItem) {
         await transaction.rollback();
-        return res.status(400).json({ error: `Inventory item "${inventoryItem.name}" belongs to a different branch` });
+        return res.status(400).json({
+          error: `Inventory item "${templateInventory.name}" belongs to a different branch`
+        });
       }
 
       if (inventoryItem.currentStock < item.quantity) {
@@ -213,7 +248,10 @@ const createSale = async (req, res) => {
 
     // Create sale items and deduct inventory
     for (const item of items) {
-      const menuItemSize = await MenuItemSize.findByPk(item.menuItemSizeId, { transaction });
+      const menuItemSize = await MenuItemSize.findByPk(item.menuItemSizeId, {
+        include: [{ model: MenuItem, as: 'menuItem' }],
+        transaction
+      });
       const unitPrice = parseFloat(menuItemSize.price);
       const quantity = item.quantity;
       const totalPrice = unitPrice * quantity;
@@ -226,8 +264,10 @@ const createSale = async (req, res) => {
         totalPrice
       }, { transaction });
 
-      // Deduct inventory
-      const inventoryItem = await InventoryItem.findByPk(menuItemSize.inventoryItemId, { transaction });
+      const templateInventory = await InventoryItem.findByPk(menuItemSize.inventoryItemId, { transaction });
+      const inventoryItem = await resolveInventoryForSaleBranch(templateInventory, branchId, menuItemSize.menuItem, transaction, {
+        createIfMissing: true
+      });
       const previousStock = inventoryItem.currentStock;
       const newStock = previousStock - quantity;
 
@@ -328,7 +368,17 @@ const cancelSale = async (req, res) => {
   try {
     const sale = await Sale.findByPk(req.params.id, {
       include: [
-        { model: SaleItem, as: 'items', include: [{ model: MenuItemSize, as: 'menuItemSize' }] }
+        {
+          model: SaleItem,
+          as: 'items',
+          include: [
+            {
+              model: MenuItemSize,
+              as: 'menuItemSize',
+              include: [{ model: MenuItem, as: 'menuItem' }]
+            }
+          ]
+        }
       ],
       transaction
     });
@@ -343,11 +393,24 @@ const cancelSale = async (req, res) => {
       return res.status(400).json({ error: 'Sale is already cancelled' });
     }
 
-    // Restore inventory for each item
+    // Restore inventory for each item (same branch row as createSale deducted from)
     for (const item of sale.items) {
-      const menuItemSize = await MenuItemSize.findByPk(item.menuItemSizeId, { transaction });
-      const inventoryItem = await InventoryItem.findByPk(menuItemSize.inventoryItemId, { transaction });
-      
+      const menuItemSize = item.menuItemSize || (await MenuItemSize.findByPk(item.menuItemSizeId, {
+        include: [{ model: MenuItem, as: 'menuItem' }],
+        transaction
+      }));
+      const menuItem = menuItemSize.menuItem;
+      const templateInventory = await InventoryItem.findByPk(menuItemSize.inventoryItemId, { transaction });
+      const inventoryItem = await resolveInventoryForSaleBranch(templateInventory, sale.branchId, menuItem, transaction, {
+        createIfMissing: false
+      });
+      if (!inventoryItem) {
+        await transaction.rollback();
+        return res.status(400).json({
+          error: `Cannot restore inventory for "${templateInventory?.name || 'item'}": no matching stock row for this branch`
+        });
+      }
+
       const previousStock = inventoryItem.currentStock;
       const restoredQuantity = item.quantity;
       const newStock = previousStock + restoredQuantity;
