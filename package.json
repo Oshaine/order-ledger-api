@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "clear-business-data": "node scripts/clearBusinessData.js",
+    "seed-restaurant-menu": "node scripts/seedRestaurantMenu.js",
+    "reseed-restaurant-menu": "node scripts/seedRestaurantMenu.js --yes --replace-menu"
   },
   "keywords": ["pos", "restaurant", "inventory"],
   "author": "",

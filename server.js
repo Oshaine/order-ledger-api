@@ -12,6 +12,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:5174',
+  'epic11.logisticsplug.com',
   'https://order-ledger.onrender.com' // Render frontend
 ];
 
@@ -46,13 +47,19 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploaded images statically
 app.use('/uploads', express.static('uploads'));
 
-// Routes
-app.use('/api', require('./routes'));
-
-// Health check
+// Health check - base routes
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'OrderLedger API is running' });
+});
+app.get('/api', (req, res) => {
+  res.json({ status: 'ok', message: 'OrderLedger API is running' });
+});
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'OrderLedger API is running' });
 });
+
+// Routes
+app.use('/api', require('./routes'));
 
 const PORT = process.env.PORT || 8000;
 

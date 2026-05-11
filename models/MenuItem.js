@@ -16,7 +16,7 @@ const MenuItem = sequelize.define('MenuItem', {
     allowNull: true
   },
   image: {
-    type: DataTypes.STRING(255),
+    type: DataTypes.STRING(2048),
     allowNull: true
   },
   isActive: {
