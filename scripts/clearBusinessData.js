@@ -3,6 +3,9 @@
  * menu items + sizes, inventory items + logs. Reports use sales — clearing sales clears report data.
  * Keeps: users, roles, branches, shifts, system settings, audit logs.
  *
+ * For full reset + menu reseed + foodbox images + fresh default inventory, use:
+ *   CONFIRM_RESET=yes node scripts/resetAndReseedMenu.js
+ *
  * Run: CONFIRM_CLEAR=yes node scripts/clearBusinessData.js
  */
 require('dotenv').config();

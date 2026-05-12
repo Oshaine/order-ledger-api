@@ -1,4 +1,4 @@
-const { InventoryItem, InventoryLog, Branch, sequelize } = require('../models');
+const { InventoryItem, InventoryLog, Branch, sequelize, MenuItemSize, MenuItem } = require('../models');
 const { Op } = require('sequelize');
 const { logAudit } = require('../middleware/audit');
 const { getBranchFilter } = require('../middleware/auth');
@@ -236,6 +236,62 @@ const adjustInventoryStock = async (req, res) => {
   }
 };
 
+const deleteInventoryItem = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const item = await InventoryItem.findByPk(req.params.id, { transaction });
+    if (!item) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Inventory item not found' });
+    }
+
+    const branchFilter = getBranchFilter(req.user);
+    if (branchFilter !== null && branchFilter !== 'NO_BRANCH') {
+      if (item.branchId !== branchFilter) {
+        await transaction.rollback();
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    } else if (branchFilter === 'NO_BRANCH') {
+      await transaction.rollback();
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const linkCount = await MenuItemSize.count({
+      where: { inventoryItemId: item.id },
+      transaction
+    });
+
+    if (linkCount > 0) {
+      const menuLinks = await MenuItemSize.findAll({
+        where: { inventoryItemId: item.id },
+        include: [{ model: MenuItem, as: 'menuItem', attributes: ['name'] }],
+        limit: 8,
+        transaction
+      });
+      await transaction.rollback();
+      const samples = menuLinks
+        .map((s) => `"${s.menuItem?.name || 'Menu item'}" (${s.size})`)
+        .join(', ');
+      const suffix = linkCount > menuLinks.length ? ' …' : '';
+      return res.status(400).json({
+        error: `Cannot delete: still linked from ${linkCount} menu size row(s): ${samples}${suffix}. Change those menu items to use another inventory item first.`
+      });
+    }
+
+    await InventoryLog.destroy({ where: { inventoryItemId: item.id }, transaction });
+    await item.destroy({ transaction });
+    await transaction.commit();
+
+    await logAudit(req, 'DELETE_INVENTORY_ITEM', 'InventoryItem', item.id, { name: item.name });
+
+    res.json({ message: 'Inventory item deleted', id: item.id });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Delete inventory item error:', error);
+    res.status(500).json({ error: 'Failed to delete inventory item' });
+  }
+};
+
 const getLowStockItems = async (req, res) => {
   try {
     const where = {
@@ -274,5 +330,6 @@ module.exports = {
   createInventoryItem,
   updateInventoryItem,
   adjustInventoryStock,
+  deleteInventoryItem,
   getLowStockItems
 };

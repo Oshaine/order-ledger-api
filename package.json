@@ -8,7 +8,12 @@
     "dev": "nodemon server.js",
     "clear-business-data": "node scripts/clearBusinessData.js",
     "seed-restaurant-menu": "node scripts/seedRestaurantMenu.js",
-    "reseed-restaurant-menu": "node scripts/seedRestaurantMenu.js --yes --replace-menu"
+    "reseed-restaurant-menu": "node scripts/seedRestaurantMenu.js --yes --replace-menu",
+    "append-missing-menu": "CONFIRM_SEED=yes APPEND_MISSING=yes node scripts/seedRestaurantMenu.js --yes --append-missing",
+    "reset-and-reseed-menu": "node scripts/resetAndReseedMenu.js",
+    "delete-branch-by-name": "node scripts/deleteBranchByName.js",
+    "remove-menu-seed-inventory": "node scripts/removeMenuSeedInventory.js",
+    "cap-inventory-9999-to-100": "node scripts/capInventoryStock9999to100.js"
   },
   "keywords": ["pos", "restaurant", "inventory"],
   "author": "",

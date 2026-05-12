@@ -26,7 +26,7 @@ async function resolveInventoryForSaleBranch(inventoryItem, saleBranchId, transa
   const defaults = {
     category: inventoryItem.category,
     size: inventoryItem.size,
-    currentStock: 9999,
+    currentStock: 100,
     lowStockThreshold: inventoryItem.lowStockThreshold ?? 10,
     unit: inventoryItem.unit || 'portion'
   };

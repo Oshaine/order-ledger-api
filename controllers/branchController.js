@@ -1,5 +1,7 @@
-const { Branch } = require('../models');
+const { Branch, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const { purgeBranchIntoKeep } = require('../utils/purgeBranchData');
+const { logAudit } = require('../middleware/audit');
 
 const getAllBranches = async (req, res) => {
   try {
@@ -70,24 +72,55 @@ const updateBranch = async (req, res) => {
 };
 
 const deleteBranch = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const branch = await Branch.findByPk(req.params.id);
+    const branch = await Branch.findByPk(req.params.id, { transaction });
     if (!branch) {
+      await transaction.rollback();
       return res.status(404).json({ error: 'Branch not found' });
     }
 
-    // Check if branch has users
-    const { User } = require('../models');
-    const userCount = await User.count({ where: { branchId: branch.id } });
-    if (userCount > 0) {
-      return res.status(400).json({ error: 'Cannot delete branch with existing users. Please reassign or remove users first.' });
+    const others = await Branch.findAll({
+      where: { id: { [Op.ne]: branch.id } },
+      transaction
+    });
+    if (others.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Cannot delete the only branch in the system' });
     }
 
-    await branch.destroy();
-    res.json({ message: 'Branch deleted successfully' });
+    let keepBranch = null;
+    const keepId = req.query.keepBranchId || req.body?.keepBranchId;
+    if (keepId) {
+      keepBranch = others.find((b) => b.id === keepId);
+      if (!keepBranch) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'keepBranchId must be another existing branch' });
+      }
+    } else {
+      keepBranch =
+        others.find((b) => /mandeville/i.test(b.name)) ||
+        others.find((b) => b.isActive) ||
+        others[0];
+    }
+
+    await purgeBranchIntoKeep(branch.id, keepBranch.id, transaction);
+    await transaction.commit();
+
+    await logAudit(req, 'DELETE_BRANCH', 'Branch', branch.id, {
+      name: branch.name,
+      usersMigratedToBranchId: keepBranch.id,
+      usersMigratedToBranchName: keepBranch.name
+    });
+
+    res.json({
+      message: 'Branch deleted successfully',
+      usersReassignedTo: { id: keepBranch.id, name: keepBranch.name }
+    });
   } catch (error) {
+    await transaction.rollback();
     console.error('Delete branch error:', error);
-    res.status(500).json({ error: 'Failed to delete branch' });
+    res.status(500).json({ error: error.message || 'Failed to delete branch' });
   }
 };
 
